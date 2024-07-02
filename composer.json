@@ -1,0 +1,12 @@
+{
+	"name": "paidwork/translation-library",
+	"description": "A library for automatic translation of language files.",
+	"autoload": {
+		"psr-4": {
+			"TranslationLibrary\\": "src/"
+		}
+	},
+	"require": {
+		"google/cloud-translate": "^1.17"
+	}
+}
