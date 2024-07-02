@@ -50,6 +50,10 @@ use RecursiveIteratorIterator;
 class TranslationTool {
     private $baseDir;
     private $standardLangDir;
+    private $excludedWords = [
+        'Paidwork', 'Apple', 'Microsoft', 'Amazon', 'Facebook', 
+        'Twitter', 'Instagram', 'LinkedIn', 'Pinterest', 'Reddit', 'TikTok'
+    ];
 
     public function __construct($baseDir, $standardLangDir) {
         $this->baseDir = $baseDir;
@@ -118,9 +122,6 @@ class TranslationTool {
     private function compareLangVariables() {
         $standardFilesList = $this->getFilesListWithPath($this->standardLangDir);
         $comparisonResults = [];
-
-
-        $excludedWords = ['Paidwork', 'Apple', 'Microsoft', 'Amazon', 'Facebook', 'Twitter', 'Instagram', 'LinkedIn', 'Pinterest', 'Reddit', 'TikTok']; 
 
         $langDirs = glob($this->baseDir . '/*', GLOB_ONLYDIR);
 
