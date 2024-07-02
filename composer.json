@@ -1,7 +1,7 @@
 {
 	"name": "paidwork/translation-library",
 	"description": "A library for automatic translation of language files.",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"autoload": {
 		"psr-4": {
 			"TranslationLibrary\\": "src/"
