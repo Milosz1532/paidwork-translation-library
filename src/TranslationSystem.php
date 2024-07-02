@@ -87,10 +87,11 @@ class TranslationSystem
                             $comparisonResults[$langCode] = [];
                         }
                         $comparisonResults[$langCode][$standardFile] = [
-                            'matches' => false,
-                            'missing_variables' => array_keys($standardVariables),
+                            'type' => 'Failed',
+                            'filePath' => $langFilePath,
+                            'langCode' => $langCode,
+                            'error' => 'File does not exist',
                         ];
-                        $this->translateVariablesToFile($langFilePath, $langCode, $standardVariables, $translate, $model, $ignoredWords, $languageCodes);
                         continue;
                     }
 
@@ -108,18 +109,14 @@ class TranslationSystem
                             $comparisonResults[$langCode] = [];
                         }
 
-                        $comparisonResults[$langCode][$relativePath] = [
-                            'matches' => empty($missingVariables),
-                            'missing_variables' => array_keys($missingVariables),
-                        ];
-                        $this->translateVariablesToFile($langFilePath, $langCode, $missingVariables, $translate, $model, $ignoredWords, $languageCodes);
+                        $result = $this->translateVariablesToFile($langFilePath, $langCode, $missingVariables, $translate, $model, $ignoredWords, $languageCodes);
+                        $comparisonResults[$langCode][$relativePath] = $result;
                     }
                 }
             }
 
             return $comparisonResults;
         } catch (\Exception $e) {
-            // Obsługa błędów tłumaczenia lub dostępu do plików
             echo "An error occurred: " . $e->getMessage();
             return [];
         }
@@ -127,43 +124,57 @@ class TranslationSystem
 
     private function translateVariablesToFile($filePath, $langCode, $variables, $translate, $model, $ignoredWords, $languageCodes)
     {
-        $maxTextsPerRequest = 80;
-        $numTexts = count($variables);
-        $numRequests = ceil($numTexts / $maxTextsPerRequest);
+        try {
+            $maxTextsPerRequest = 80;
+            $numTexts = count($variables);
+            $numRequests = ceil($numTexts / $maxTextsPerRequest);
 
-        $content = file_exists($filePath) ? file_get_contents($filePath) : "<?php\n\n";
-        $targetLanguageCode = $languageCodes[$langCode];
+            $content = file_exists($filePath) ? file_get_contents($filePath) : "<?php\n\n";
+            $targetLanguageCode = $languageCodes[$langCode];
 
-        for ($i = 0; $i < $numRequests; $i++) {
-            $startIdx = $i * $maxTextsPerRequest;
-            $endIdx = min(($i + 1) * $maxTextsPerRequest, $numTexts);
-            $chunkVariables = array_slice($variables, $startIdx, $endIdx - $startIdx);
-            $chunkTexts = array_map(function($text) use ($ignoredWords) {
-                $text = $this->replaceWordsWithSpan($text, $ignoredWords);
-                $text = $this->replaceSpecialTagsWithSpan($text);
-                return $text;
-            }, array_values($chunkVariables));
+            for ($i = 0; $i < $numRequests; $i++) {
+                $startIdx = $i * $maxTextsPerRequest;
+                $endIdx = min(($i + 1) * $maxTextsPerRequest, $numTexts);
+                $chunkVariables = array_slice($variables, $startIdx, $endIdx - $startIdx);
+                $chunkTexts = array_map(function($text) use ($ignoredWords) {
+                    $text = $this->replaceWordsWithSpan($text, $ignoredWords);
+                    $text = $this->replaceSpecialTagsWithSpan($text);
+                    return $text;
+                }, array_values($chunkVariables));
 
-            $translations = $translate->translateBatch($chunkTexts, [
-                'target' => $targetLanguageCode,
-                'model' => $model,
-                'format' => "html",
-            ]);
+                $translations = $translate->translateBatch($chunkTexts, [
+                    'target' => $targetLanguageCode,
+                    'model' => $model,
+                    'format' => "html",
+                ]);
 
-            foreach ($translations as $index => $translation) {
-                $key = array_keys($chunkVariables)[$index];
-                $translatedText = $this->removeSpanTags($translation['text']);
-                $translatedText = addslashes($translatedText);
-                $translatedText = preg_replace('/\s+(:)/', '$1', $translatedText);
+                foreach ($translations as $index => $translation) {
+                    $key = array_keys($chunkVariables)[$index];
+                    $translatedText = $this->removeSpanTags($translation['text']);
+                    $translatedText = addslashes($translatedText);
+                    $translatedText = preg_replace('/\s+(:)/', '$1', $translatedText);
 
-                $content .= "\n\$lang['$key'] = \"$translatedText\";";
+                    $content .= "\n\$lang['$key'] = \"$translatedText\";";
+                }
             }
+
+            file_put_contents($filePath, $content);
+
+            return [
+                'type' => 'Success',
+                'filePath' => $filePath,
+                'langCode' => $langCode,
+            ];
+        } catch (\Exception $e) {
+            return [
+                'type' => 'Failed',
+                'filePath' => $filePath,
+                'langCode' => $langCode,
+                'error' => $e->getMessage(),
+            ];
         }
-
-        file_put_contents($filePath, $content);
-
-        echo "<br><span style='color:green;'>Variables in file <b>$filePath</b> have been successfully translated to language <b>$langCode</b>.</span>";
     }
+
 
     private function replaceWordsWithSpan($text, $words)
     {
